@@ -42,9 +42,7 @@ export const useMatchData = (): UseMatchData => {
         }
         setMatches((prevMatches) =>
           prevMatches.map((m) => {
-            // Loose equality check for ID (string vs number)
-            // eslint-disable-next-line eqeqeq
-            if (m.id == msg.matchId) {
+            if (String(m.id) === String(msg.matchId)) {
               return {
                 ...m,
                 homeScore: msg.data.homeScore,
@@ -163,7 +161,8 @@ export const useMatchData = (): UseMatchData => {
   }, [unsubscribeMatch]);
 
   useEffect(() => {
-    loadMatches();
+    const timeout = setTimeout(() => void loadMatches(), 0);
+    return () => clearTimeout(timeout);
   }, [loadMatches]);
 
   useEffect(() => {
