@@ -20,6 +20,7 @@ export const useWebSocket = (
   const reconnectAttempts = useRef(0);
   const isIntentionalClose = useRef(false);
   const subscribedMatchIdsRef = useRef(new Set<string>());
+  const initConnectionRef = useRef<(() => void) | null>(null);
 
   const normalizeId = (matchId: string | number) => String(matchId);
 
@@ -68,7 +69,7 @@ export const useWebSocket = (
         }
       };
 
-      socket.onerror = (_event) => {
+      socket.onerror = () => {
         // WebSocket error events are generic in browsers and don't contain descriptive messages.
         // We log it to indicate an issue occurred.
         console.warn('[WebSocket] Connection error occurred');
@@ -93,7 +94,7 @@ export const useWebSocket = (
           
           reconnectTimeout.current = setTimeout(() => {
             reconnectAttempts.current += 1;
-            initConnection();
+            initConnectionRef.current?.();
           }, delay);
         } else {
             // If closed intentionally, just set status
@@ -106,6 +107,13 @@ export const useWebSocket = (
       setStatus('error');
     }
   }, [onMessage]);
+
+  useEffect(() => {
+    initConnectionRef.current = initConnection;
+    return () => {
+      if (initConnectionRef.current === initConnection) initConnectionRef.current = null;
+    };
+  }, [initConnection]);
 
   // Public connect method
   const connectGlobal = useCallback(() => {
