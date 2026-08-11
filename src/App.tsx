@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useMatchData } from './hooks/useMatchData';
 import { MatchCard } from './components/MatchCard';
 import { LiveFeed } from './components/LiveFeed';
@@ -10,6 +10,9 @@ const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const { matches, isLoading, error, commentary, isCommentaryLoading, wsError, status, activeMatchId, newMatchesCount, dismissNewMatches, watchMatch, unwatchMatch, reloadMatches } = useMatchData();
   const totalPages = Math.max(1, Math.ceil(matches.length / pageSize));
+  useEffect(() => {
+    setCurrentPage(page => Math.min(page, totalPages));
+  }, [totalPages]);
   const effectivePage = Math.min(currentPage, totalPages);
   const pagedMatches = useMemo(() => matches.slice((effectivePage - 1) * pageSize, effectivePage * pageSize), [matches, effectivePage]);
 
