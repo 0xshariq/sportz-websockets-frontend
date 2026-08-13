@@ -85,7 +85,6 @@ export const useMatchData = (): UseMatchData => {
 
   const {
     status,
-    connectGlobal,
     subscribeMatch,
     unsubscribeMatch,
   } = useWebSocket(handleWSMessage);
@@ -136,19 +135,6 @@ export const useMatchData = (): UseMatchData => {
       }
       knownMatchIdsRef.current = nextMatchIds;
 
-      nextMatches.forEach((match) => {
-        const matchId = String(match.id);
-        if (subscribedMatchIdsRef.current.has(matchId) && match.status.toLowerCase() === "finished") {
-          subscribedMatchIdsRef.current.delete(matchId);
-          unsubscribeMatch(match.id);
-          if (latestMatchIdRef.current == match.id) {
-            setActiveMatchId(null);
-            latestMatchIdRef.current = null;
-            setCommentary([]);
-            setIsCommentaryLoading(false);
-          }
-        }
-      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to load matches";
       setError(msg);
@@ -158,7 +144,7 @@ export const useMatchData = (): UseMatchData => {
         hasLoadedRef.current = true;
       }
     }
-  }, [unsubscribeMatch]);
+  }, []);
 
   useEffect(() => {
     const timeout = setTimeout(() => void loadMatches(), 0);
@@ -173,12 +159,27 @@ export const useMatchData = (): UseMatchData => {
   }, [loadMatches]);
 
   useEffect(() => {
-    connectGlobal();
-  }, [connectGlobal]);
-
-  useEffect(() => {
     latestMatchIdRef.current = activeMatchId;
   }, [activeMatchId]);
+
+  useEffect(() => {
+    if (activeMatchId == null) return;
+
+    const activeMatch = matches.find(
+      (match) => String(match.id) === String(activeMatchId)
+    );
+    const isLive = activeMatch?.status.toLowerCase() === "live";
+    const normalizedId = String(activeMatchId);
+    const isSubscribed = subscribedMatchIdsRef.current.has(normalizedId);
+
+    if (isLive && !isSubscribed) {
+      subscribedMatchIdsRef.current.add(normalizedId);
+      subscribeMatch(activeMatchId);
+    } else if (!isLive && isSubscribed) {
+      subscribedMatchIdsRef.current.delete(normalizedId);
+      unsubscribeMatch(activeMatchId);
+    }
+  }, [activeMatchId, matches, subscribeMatch, unsubscribeMatch]);
 
   useEffect(() => {
     return () => {
@@ -208,9 +209,13 @@ export const useMatchData = (): UseMatchData => {
         unsubscribeMatch(activeMatchId);
       }
       setActiveMatchId(id);
+      const match = matches.find((item) => String(item.id) === String(id));
+      const isLive = match?.status.toLowerCase() === "live";
       const matchId = String(id);
-      subscribedMatchIdsRef.current.add(matchId);
-      subscribeMatch(id);
+      if (isLive) {
+        subscribedMatchIdsRef.current.add(matchId);
+        subscribeMatch(id);
+      }
       fetchMatchCommentary(id)
         .then((data) => {
           if (latestMatchIdRef.current == id) {
@@ -228,7 +233,7 @@ export const useMatchData = (): UseMatchData => {
           }
         });
     },
-    [activeMatchId, subscribeMatch, unsubscribeMatch]
+    [activeMatchId, matches, subscribeMatch, unsubscribeMatch]
   );
 
   const unwatchMatch = useCallback(
