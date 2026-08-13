@@ -170,12 +170,16 @@ export const useMatchData = (): UseMatchData => {
     );
     const isLive = activeMatch?.status.toLowerCase() === "live";
     const normalizedId = String(activeMatchId);
+    const isSubscribed = subscribedMatchIdsRef.current.has(normalizedId);
 
-    if (!isLive && subscribedMatchIdsRef.current.has(normalizedId)) {
+    if (isLive && !isSubscribed) {
+      subscribedMatchIdsRef.current.add(normalizedId);
+      subscribeMatch(activeMatchId);
+    } else if (!isLive && isSubscribed) {
       subscribedMatchIdsRef.current.delete(normalizedId);
       unsubscribeMatch(activeMatchId);
     }
-  }, [activeMatchId, matches, unsubscribeMatch]);
+  }, [activeMatchId, matches, subscribeMatch, unsubscribeMatch]);
 
   useEffect(() => {
     return () => {
