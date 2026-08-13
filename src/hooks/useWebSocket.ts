@@ -4,7 +4,6 @@ import type { ConnectionStatus, WSMessage } from '../utils/types';
 
 interface UseWebSocketReturn {
   status: ConnectionStatus;
-  connectGlobal: () => void;
   subscribeMatch: (matchId: string | number) => void;
   unsubscribeMatch: (matchId: string | number) => void;
   disconnect: () => void;
@@ -115,26 +114,33 @@ export const useWebSocket = (
     };
   }, [initConnection]);
 
-  // Public connect method
-  const connectGlobal = useCallback(() => {
-    if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
-    reconnectAttempts.current = 0;
-    if (ws.current && (ws.current.readyState === WebSocket.OPEN || ws.current.readyState === WebSocket.CONNECTING)) {
-      return;
-    }
-    initConnection();
-  }, [initConnection]);
-
   const subscribeMatch = useCallback((matchId: string | number) => {
     const normalized = normalizeId(matchId);
     subscribedMatchIdsRef.current.add(normalized);
+
+    if (!ws.current || ws.current.readyState === WebSocket.CLOSED) {
+      if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
+      reconnectAttempts.current = 0;
+      initConnection();
+      return;
+    }
+
     sendMessage({ type: 'subscribe', matchId });
-  }, [sendMessage]);
+  }, [initConnection, sendMessage]);
 
   const unsubscribeMatch = useCallback((matchId: string | number) => {
     const normalized = normalizeId(matchId);
     subscribedMatchIdsRef.current.delete(normalized);
     sendMessage({ type: 'unsubscribe', matchId });
+
+    if (subscribedMatchIdsRef.current.size === 0) {
+      isIntentionalClose.current = true;
+      if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
+      reconnectTimeout.current = null;
+      ws.current?.close();
+      ws.current = null;
+      setStatus('disconnected');
+    }
   }, [sendMessage]);
 
   // Public disconnect method
@@ -162,5 +168,5 @@ export const useWebSocket = (
     };
   }, []);
 
-  return { status, connectGlobal, subscribeMatch, unsubscribeMatch, disconnect };
+  return { status, subscribeMatch, unsubscribeMatch, disconnect };
 };
