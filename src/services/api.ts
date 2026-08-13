@@ -3,22 +3,27 @@ import type { CommentaryResponse, MatchResponse } from "../utils/types";
 
 const readJson = async <T>(response: Response, resource: string): Promise<T> => {
   const body = await response.text();
-  let parsed: unknown;
-
-  try {
-    parsed = body ? JSON.parse(body) : null;
-  } catch {
-    throw new Error(`Invalid JSON from ${resource}`);
-  }
 
   if (!response.ok) {
-    const detail = typeof parsed === "object" && parsed !== null && "message" in parsed
-      ? String(parsed.message)
-      : response.statusText;
+    let detail = body.trim() || response.statusText;
+
+    try {
+      const parsed: unknown = body ? JSON.parse(body) : null;
+      if (typeof parsed === "object" && parsed !== null && "message" in parsed) {
+        detail = String(parsed.message);
+      }
+    } catch {
+      // Preserve the raw error body for non-JSON HTTP failures.
+    }
+
     throw new Error(`API error: ${response.status} ${detail}`);
   }
 
-  return parsed as T;
+  try {
+    return (body ? JSON.parse(body) : null) as T;
+  } catch {
+    throw new Error(`Invalid JSON from ${resource}`);
+  }
 };
 
 const normalizeListResponse = <T>(payload: unknown, resource: string): { data: T[] } => {
