@@ -80,6 +80,10 @@ export const useWebSocket = (
       };
 
       socket.onclose = (event) => {
+        if (ws.current !== socket) {
+          return;
+        }
+
         if (!isIntentionalClose.current) {
           setStatus('disconnected');
           

@@ -163,6 +163,21 @@ export const useMatchData = (): UseMatchData => {
   }, [activeMatchId]);
 
   useEffect(() => {
+    if (activeMatchId == null) return;
+
+    const activeMatch = matches.find(
+      (match) => String(match.id) === String(activeMatchId)
+    );
+    const isLive = activeMatch?.status.toLowerCase() === "live";
+    const normalizedId = String(activeMatchId);
+
+    if (!isLive && subscribedMatchIdsRef.current.has(normalizedId)) {
+      subscribedMatchIdsRef.current.delete(normalizedId);
+      unsubscribeMatch(activeMatchId);
+    }
+  }, [activeMatchId, matches, unsubscribeMatch]);
+
+  useEffect(() => {
     return () => {
       if (newMatchesTimeoutRef.current) {
         clearTimeout(newMatchesTimeoutRef.current);
