@@ -1,9 +1,9 @@
 export interface Match {
-  id: string | number;
+  id: number;
   sport: string;
   homeTeam: string;
   awayTeam: string;
-  status: string; // Allow flexible status strings from API
+  status: 'scheduled' | 'live' | 'finished' | string;
   startTime: string;
   endTime?: string;
   homeScore: number;
@@ -11,15 +11,12 @@ export interface Match {
   createdAt?: string;
 }
 
-export interface MatchResponse {
-  data: Match[];
-}
-
+export interface MatchResponse { data: Match[]; }
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
 export interface Commentary {
-  id: string | number;
-  matchId: string | number;
+  id: number;
+  matchId: number;
   minute?: number;
   sequence?: number;
   period?: string;
@@ -32,71 +29,13 @@ export interface Commentary {
   createdAt?: string;
 }
 
-export interface CommentaryResponse {
-  data: Commentary[];
-}
-
-// WebSocket Message Types
-export interface WSMessageCommentary {
-  type: 'commentary';
-  data: Commentary;
-}
-
-export interface WSMessageScore {
-  type: 'score_update';
-  matchId: string | number;
-  data: {
-    homeScore: number;
-    awayScore: number;
-  };
-}
-
-export interface WSMessageWelcome {
-  type: 'welcome';
-  message?: string;
-}
-
-export interface WSMessagePong {
-  type: 'pong';
-}
-
-export interface WSMessageError {
-  type: 'error';
-  code: string;
-  message: string;
-}
-
-export interface WSMessageSubscribed {
-  type: 'subscribed';
-  matchId: string | number;
-}
-
-export interface WSMessageUnsubscribed {
-  type: 'unsubscribed';
-  matchId: string | number;
-}
-
-export interface WSMessageSubscriptions {
-  type: 'subscriptions';
-  matchIds: Array<string | number>;
-}
-
-export interface WSMessageSubscribedAll {
-  type: 'subscribed_all';
-}
-
-export interface WSMessageUnsubscribedAll {
-  type: 'unsubscribed_all';
-}
-
-export type WSMessage =
-  | WSMessageCommentary
-  | WSMessageScore
-  | WSMessageWelcome
-  | WSMessagePong
-  | WSMessageError
-  | WSMessageSubscribed
-  | WSMessageUnsubscribed
-  | WSMessageSubscriptions
-  | WSMessageSubscribedAll
-  | WSMessageUnsubscribedAll;
+export interface CommentaryResponse { data: Commentary[]; }
+export interface WSMessageCommentary { type: 'commentary'; data: Commentary; }
+export interface WSMessageScore { type: 'score_update'; matchId: number; data: { homeScore: number; awayScore: number; }; }
+export interface WSMessageCreated { type: 'match_created'; data: Match; }
+export interface WSMessageWelcome { type: 'welcome'; }
+export interface WSMessageError { type: 'error'; code: string; message: string; }
+export interface WSMessageSubscribed { type: 'subscribed'; matchId: number; }
+export interface WSMessageUnsubscribed { type: 'unsubscribed'; matchId: number; }
+export type WSMessage = WSMessageCommentary | WSMessageScore | WSMessageCreated | WSMessageWelcome | WSMessageError | WSMessageSubscribed | WSMessageUnsubscribed;
+export type WSClientMessage = { type: 'subscribe' | 'unsubscribe'; matchId: number };

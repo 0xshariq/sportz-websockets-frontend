@@ -1,22 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchMatchCommentary, fetchMatches } from "../services/api";
-import type { Commentary, Match, WSMessage } from "../utils/types";
-import { useWebSocket } from "./useWebSocket";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { fetchMatchCommentary, fetchMatches } from '../services/api';
+import type { Commentary, Match, WSMessage } from '../utils/types';
+import { useWebSocket } from './useWebSocket';
 
 interface UseMatchData {
-  matches: Match[];
-  isLoading: boolean;
-  error: string | null;
-  commentary: Commentary[];
-  isCommentaryLoading: boolean;
-  wsError: string | null;
-  status: ReturnType<typeof useWebSocket>["status"];
-  activeMatchId: string | number | null;
-  newMatchesCount: number;
-  dismissNewMatches: () => void;
-  watchMatch: (id: string | number) => void;
-  unwatchMatch: (id: string | number) => void;
-  reloadMatches: () => void;
+  matches: Match[]; isLoading: boolean; error: string | null; commentary: Commentary[];
+  isCommentaryLoading: boolean; wsError: string | null; status: ReturnType<typeof useWebSocket>['status'];
+  activeMatchId: number | null; newMatchesCount: number; dismissNewMatches: () => void;
+  watchMatch: (id: string | number) => void; unwatchMatch: (id: string | number) => void; reloadMatches: () => void;
 }
 
 export const useMatchData = (): UseMatchData => {
@@ -26,244 +17,64 @@ export const useMatchData = (): UseMatchData => {
   const [commentary, setCommentary] = useState<Commentary[]>([]);
   const [isCommentaryLoading, setIsCommentaryLoading] = useState(false);
   const [wsError, setWsError] = useState<string | null>(null);
-  const [activeMatchId, setActiveMatchId] = useState<string | number | null>(null);
+  const [activeMatchId, setActiveMatchId] = useState<number | null>(null);
   const [newMatchesCount, setNewMatchesCount] = useState(0);
-  const latestMatchIdRef = useRef<string | number | null>(null);
-  const subscribedMatchIdsRef = useRef(new Set<string>());
-  const hasLoadedRef = useRef(false);
-  const knownMatchIdsRef = useRef(new Set<string>());
-  const newMatchesTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeRef = useRef<number | null>(null);
+  const knownIdsRef = useRef(new Set<number>());
+  const subscribedRef = useRef(new Set<number>());
+  const requestRef = useRef(0);
 
-  const handleWSMessage = useCallback((msg: WSMessage) => {
-    switch (msg.type) {
-      case "score_update":
-        if (!subscribedMatchIdsRef.current.has(String(msg.matchId))) {
-          return;
-        }
-        setMatches((prevMatches) =>
-          prevMatches.map((m) => {
-            if (String(m.id) === String(msg.matchId)) {
-              return {
-                ...m,
-                homeScore: msg.data.homeScore,
-                awayScore: msg.data.awayScore,
-              };
-            }
-            return m;
-          })
-        );
-        break;
-      case "commentary": {
-        if (
-          latestMatchIdRef.current == null ||
-          msg.data.matchId != latestMatchIdRef.current
-        ) {
-          return;
-        }
-        const normalized = {
-          ...msg.data,
-          createdAt: msg.data.createdAt ?? new Date().toISOString(),
-        };
-        setCommentary((prev) => [normalized, ...prev]);
-        break;
-      }
-      case "error":
-        setWsError(`${msg.code}: ${msg.message}`);
-        break;
-      case "subscribed":
-      case "unsubscribed":
-      case "subscribed_all":
-      case "unsubscribed_all":
-      case "subscriptions":
-      case "welcome":
-      case "pong":
-        break;
-      default:
-        break;
+  const handleMessage = useCallback((message: WSMessage) => {
+    if (message.type === 'match_created') {
+      setMatches((current) => current.some((match) => match.id === message.data.id) ? current : [message.data, ...current]);
+      setNewMatchesCount((count) => count + 1);
+    } else if (message.type === 'score_update') {
+      setMatches((current) => current.map((match) => match.id === message.matchId ? { ...match, ...message.data } : match));
+    } else if (message.type === 'commentary' && message.data.matchId === activeRef.current) {
+      setCommentary((current) => current.some((item) => item.id === message.data.id) ? current : [message.data, ...current]);
+    } else if (message.type === 'error') {
+      setWsError(`${message.code}: ${message.message}`);
     }
   }, []);
 
-  const {
-    status,
-    subscribeMatch,
-    unsubscribeMatch,
-  } = useWebSocket(handleWSMessage);
+  const { status, subscribeMatch, unsubscribeMatch } = useWebSocket(handleMessage);
 
   const loadMatches = useCallback(async () => {
-    if (!hasLoadedRef.current) {
-      setIsLoading(true);
-    }
     setError(null);
     try {
-      const data = await fetchMatches(100);
-      const nextMatches = data.data || [];
-      const nextMatchIds = new Set(nextMatches.map((match) => String(match.id)));
-      setMatches((prevMatches) => {
-        const prevById = new Map(
-          prevMatches.map((match) => [String(match.id), match])
-        );
-        return nextMatches.map((match) => {
-          const matchId = String(match.id);
-          const prev = prevById.get(matchId);
-          if (prev && !subscribedMatchIdsRef.current.has(matchId)) {
-            return {
-              ...match,
-              homeScore: prev.homeScore,
-              awayScore: prev.awayScore,
-            };
-          }
-          return match;
-        });
-      });
-      if (knownMatchIdsRef.current.size > 0) {
-        let newCount = 0;
-        nextMatchIds.forEach((matchId) => {
-          if (!knownMatchIdsRef.current.has(matchId)) {
-            newCount += 1;
-          }
-        });
-        if (newCount > 0) {
-          setNewMatchesCount((prev) => prev + newCount);
-          if (newMatchesTimeoutRef.current) {
-            clearTimeout(newMatchesTimeoutRef.current);
-          }
-          newMatchesTimeoutRef.current = setTimeout(() => {
-            setNewMatchesCount(0);
-            newMatchesTimeoutRef.current = null;
-          }, 5000);
-        }
-      }
-      knownMatchIdsRef.current = nextMatchIds;
-
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to load matches";
-      setError(msg);
-    } finally {
-      if (!hasLoadedRef.current) {
-        setIsLoading(false);
-        hasLoadedRef.current = true;
-      }
-    }
+      const next = (await fetchMatches(100)).data;
+      const nextIds = new Set(next.map((match) => match.id));
+      if (knownIdsRef.current.size) setNewMatchesCount((count) => count + [...nextIds].filter((id) => !knownIdsRef.current.has(id)).length);
+      knownIdsRef.current = nextIds;
+      setMatches(next);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Failed to load matches'); }
+    finally { setIsLoading(false); }
   }, []);
 
   useEffect(() => {
-    const timeout = setTimeout(() => void loadMatches(), 0);
-    return () => clearTimeout(timeout);
+    const initialLoad = setTimeout(() => void loadMatches(), 0);
+    const interval = setInterval(() => void loadMatches(), 5000);
+    return () => { clearTimeout(initialLoad); clearInterval(interval); };
   }, [loadMatches]);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      loadMatches();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [loadMatches]);
+  const watchMatch = useCallback((rawId: string | number) => {
+    const id = Number(rawId);
+    if (!Number.isInteger(id)) return;
+    const requestId = ++requestRef.current;
+    activeRef.current = id;
+    setActiveMatchId(id); setCommentary([]); setWsError(null); setIsCommentaryLoading(true);
+    if (subscribedRef.current.has(id)) unsubscribeMatch(id);
+    const match = matches.find((item) => item.id === id);
+    if (match?.status.toLowerCase() === 'live') { subscribedRef.current.add(id); subscribeMatch(id); }
+    fetchMatchCommentary(id).then((result) => { if (requestRef.current === requestId) setCommentary(result.data); }).catch(() => { if (requestRef.current === requestId) setCommentary([]); }).finally(() => { if (requestRef.current === requestId) setIsCommentaryLoading(false); });
+  }, [matches, subscribeMatch, unsubscribeMatch]);
 
-  useEffect(() => {
-    latestMatchIdRef.current = activeMatchId;
-  }, [activeMatchId]);
+  const unwatchMatch = useCallback((rawId: string | number) => {
+    const id = Number(rawId);
+    if (!Number.isInteger(id)) return;
+    unsubscribeMatch(id); subscribedRef.current.delete(id);
+    if (activeRef.current === id) { activeRef.current = null; setActiveMatchId(null); setCommentary([]); setIsCommentaryLoading(false); }
+  }, [unsubscribeMatch]);
 
-  useEffect(() => {
-    if (activeMatchId == null) return;
-
-    const activeMatch = matches.find(
-      (match) => String(match.id) === String(activeMatchId)
-    );
-    const isLive = activeMatch?.status.toLowerCase() === "live";
-    const normalizedId = String(activeMatchId);
-    const isSubscribed = subscribedMatchIdsRef.current.has(normalizedId);
-
-    if (isLive && !isSubscribed) {
-      subscribedMatchIdsRef.current.add(normalizedId);
-      subscribeMatch(activeMatchId);
-    } else if (!isLive && isSubscribed) {
-      subscribedMatchIdsRef.current.delete(normalizedId);
-      unsubscribeMatch(activeMatchId);
-    }
-  }, [activeMatchId, matches, subscribeMatch, unsubscribeMatch]);
-
-  useEffect(() => {
-    return () => {
-      if (newMatchesTimeoutRef.current) {
-        clearTimeout(newMatchesTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const dismissNewMatches = useCallback(() => {
-    if (newMatchesTimeoutRef.current) {
-      clearTimeout(newMatchesTimeoutRef.current);
-      newMatchesTimeoutRef.current = null;
-    }
-    setNewMatchesCount(0);
-  }, []);
-
-  const watchMatch = useCallback(
-    (id: string | number) => {
-      setCommentary([]);
-      setIsCommentaryLoading(true);
-      setWsError(null);
-      latestMatchIdRef.current = id;
-      if (activeMatchId != null && activeMatchId != id) {
-        const previousId = String(activeMatchId);
-        subscribedMatchIdsRef.current.delete(previousId);
-        unsubscribeMatch(activeMatchId);
-      }
-      setActiveMatchId(id);
-      const match = matches.find((item) => String(item.id) === String(id));
-      const isLive = match?.status.toLowerCase() === "live";
-      const matchId = String(id);
-      if (isLive) {
-        subscribedMatchIdsRef.current.add(matchId);
-        subscribeMatch(id);
-      }
-      fetchMatchCommentary(id)
-        .then((data) => {
-          if (latestMatchIdRef.current == id) {
-            setCommentary(data.data || []);
-          }
-        })
-        .catch(() => {
-          if (latestMatchIdRef.current == id) {
-            setCommentary([]);
-          }
-        })
-        .finally(() => {
-          if (latestMatchIdRef.current == id) {
-            setIsCommentaryLoading(false);
-          }
-        });
-    },
-    [activeMatchId, matches, subscribeMatch, unsubscribeMatch]
-  );
-
-  const unwatchMatch = useCallback(
-    (id: string | number) => {
-      unsubscribeMatch(id);
-      const matchId = String(id);
-      subscribedMatchIdsRef.current.delete(matchId);
-      if (activeMatchId == id) {
-        setActiveMatchId(null);
-        latestMatchIdRef.current = null;
-        setCommentary([]);
-        setIsCommentaryLoading(false);
-      }
-    },
-    [activeMatchId, unsubscribeMatch]
-  );
-
-  return {
-    matches,
-    isLoading,
-    error,
-    commentary,
-    isCommentaryLoading,
-    wsError,
-    status,
-    activeMatchId,
-    newMatchesCount,
-    dismissNewMatches,
-    watchMatch,
-    unwatchMatch,
-    reloadMatches: loadMatches,
-  };
+  return { matches, isLoading, error, commentary, isCommentaryLoading, wsError, status, activeMatchId, newMatchesCount, dismissNewMatches: () => setNewMatchesCount(0), watchMatch, unwatchMatch, reloadMatches: loadMatches };
 };
