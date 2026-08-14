@@ -1,5 +1,5 @@
-const DEFAULT_API_BASE_URL = "http://localhost:3000";
-const DEFAULT_WS_BASE_URL = "ws://localhost:3000/ws";
+const DEFAULT_API_BASE_URL = "https://sportz-websockets-backend.vercel.app";
+const DEFAULT_WS_BASE_URL = "wss://sportz-websockets-backend.vercel.app/ws";
 
 const trimTrailingSlashes = (value: string) => value.replace(/\/+$/, "");
 
