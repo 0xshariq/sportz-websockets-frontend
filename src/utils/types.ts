@@ -3,7 +3,7 @@ export interface Match {
   sport: string;
   homeTeam: string;
   awayTeam: string;
-  status: 'scheduled' | 'live' | 'finished' | string;
+  status: 'scheduled' | 'live' | 'finished' | (string & {});
   startTime: string;
   endTime?: string;
   homeScore: number;

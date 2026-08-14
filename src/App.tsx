@@ -18,6 +18,7 @@ const App: React.FC = () => {
       <div><h1 className="m-0 text-[30px] font-extrabold leading-none tracking-[-1.5px]">Sportz</h1><p className="mt-2 mb-0 text-[13px] font-bold">Real-time match data demo</p></div>
       <div className="flex flex-col items-end gap-1"><StatusIndicator status={status} />{wsError && <span className="mono ws-error">WS: {wsError}</span>}</div>
     </header>
+    {(error || wsError || status === 'error' || status === 'disconnected') && <div role="status" aria-live="polite" className="mt-5 rounded-[14px] border-2 border-[#df3d48] bg-[#fff0f0] p-4 text-sm font-bold text-[#a51e2a]"><strong>{error ? 'Backend unavailable' : 'Live updates unavailable'}</strong><p className="mt-1 mb-0 font-semibold">{error || wsError || 'The dashboard will retry automatically.'}</p></div>}
     <div className="dashboard mt-7 grid items-start gap-7 lg:grid-cols-[minmax(0,2fr)_minmax(310px,.95fr)]">
       <main>
         <div className="mb-4 flex items-center justify-between"><h2 className="m-0 border-l-[5px] border-[#a9dff7] pl-3 text-xl font-bold">Current Matches</h2><span className="mono rounded bg-[#171717] px-2 py-1 text-xs font-bold text-white">API: {isLoading ? '…' : matches.length}</span></div>
