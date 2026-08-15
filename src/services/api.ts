@@ -1,5 +1,6 @@
 import { API_BASE_URL } from '../utils/constants';
-import type { CommentaryResponse, MatchResponse } from '../utils/types';
+import type { CommentaryResponse, Match, MatchResponse } from '../utils/types';
+import { normalizeMatches } from '../utils/matches';
 
 const clampLimit = (value: number) => Number.isFinite(value) ? Math.min(100, Math.max(1, Math.trunc(value))) : 100;
 
@@ -33,7 +34,8 @@ const normalizeListResponse = <T>(payload: unknown, resource: string): { data: T
 
 export const fetchMatches = async (limit = 100, signal?: AbortSignal): Promise<MatchResponse> => {
   const resource = `${API_BASE_URL}/matches`;
-  return normalizeListResponse(await readJson<unknown>(await request(`${resource}?limit=${clampLimit(limit)}`, signal), resource), resource);
+  const response = normalizeListResponse<Match>(await readJson<unknown>(await request(`${resource}?limit=${clampLimit(limit)}`, signal), resource), resource);
+  return { data: normalizeMatches(response.data) };
 };
 
 export const fetchMatchCommentary = async (matchId: string | number, limit = 100, signal?: AbortSignal): Promise<CommentaryResponse> => {

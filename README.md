@@ -1,77 +1,50 @@
-# React + TypeScript + Vite
+# Sportz Live Dashboard Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Sportz is a React + TypeScript + Vite dashboard for monitoring live sports matches. It loads match data and commentary from the Sportz backend over REST, then listens for score, commentary, and newly-created-match events over WebSocket.
 
-Currently, two official plugins are available:
+## What the frontend does
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Displays scheduled, live, and finished matches with team scores.
+- Normalizes backend status values so completed matches are shown as **Finished**.
+- Shows each match date plus clearly labeled **Start** and **End** times in the viewer's local timezone.
+- Polls the match API every five seconds so the dashboard remains useful if a WebSocket reconnects.
+- Connects to the WebSocket with automatic exponential-backoff reconnects.
+- Lets users watch a live match and view its commentary feed.
+- Preserves live score updates while REST data refreshes.
 
-## React Compiler
+## Backend
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+This frontend consumes the Sportz backend API and WebSocket service:
 
-Note: This will impact Vite dev & build performances.
+[Sportz WebSockets Backend](https://github.com/0xshariq/sportz-websockets-backend)
 
-## Expanding the ESLint configuration
+## Configuration
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Create a `.env.local` file when you need to override the deployed defaults:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+VITE_API_BASE_URL=https://sportz-websockets-backend.vercel.app
+VITE_WS_BASE_URL=wss://sportz-websockets-backend.vercel.app/ws
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The app falls back to these same backend URLs when the variables are not set.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Local development
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm install
+npm run dev
 ```
+
+Then open the local Vite URL shown in the terminal.
+
+## Validation
+
+```bash
+npm run lint
+npm run build
+```
+
+## Connection behavior
+
+A WebSocket disconnect is treated as a recoverable transport event. The header shows **Syncing** while the client reconnects instead of presenting a permanent offline/live-updates-unavailable error. REST polling continues independently, and the connection automatically returns to **Live** after the WebSocket opens again.
