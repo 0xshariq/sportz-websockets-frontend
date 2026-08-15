@@ -28,8 +28,12 @@ export const useWebSocket = (onMessage: (message: WSMessage) => void): UseWebSoc
     const socket = new WebSocket(WS_BASE_URL); socketRef.current = socket;
     socket.onopen = () => { attemptsRef.current = 0; setStatus('connected'); subscriptionsRef.current.forEach(matchId => socket.send(JSON.stringify({ type: 'subscribe', matchId }))); };
     socket.onmessage = event => { try { const parsed: unknown = JSON.parse(event.data); if (isWSMessage(parsed)) onMessageRef.current(parsed); } catch { /* malformed frames do not change connection status */ } };
-    socket.onerror = () => setStatus('error');
-    socket.onclose = () => { if (socketRef.current !== socket || intentionalCloseRef.current) return; socketRef.current = null; setStatus('disconnected'); const delay = Math.min(INITIAL_RECONNECT_DELAY * (2 ** attemptsRef.current), MAX_RECONNECT_DELAY); attemptsRef.current += 1; reconnectTimerRef.current = setTimeout(() => connectRef.current(), delay); };
+    socket.onerror = () => {
+      if (socketRef.current !== socket || intentionalCloseRef.current) return;
+      // onclose owns reconnect scheduling; keep the UI in a recoverable state during transient failures.
+      setStatus('reconnecting');
+    };
+    socket.onclose = () => { if (socketRef.current !== socket || intentionalCloseRef.current) return; socketRef.current = null; setStatus('reconnecting'); const delay = Math.min(INITIAL_RECONNECT_DELAY * (2 ** attemptsRef.current), MAX_RECONNECT_DELAY); attemptsRef.current += 1; reconnectTimerRef.current = setTimeout(() => connectRef.current(), delay); };
   }, []);
   useEffect(() => { intentionalCloseRef.current = false; connectRef.current = connect; connect(); return () => { intentionalCloseRef.current = true; if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current); socketRef.current?.close(); }; }, [connect]);
   const subscribeMatch = useCallback((rawId: string | number) => { const id = Number(rawId); if (!Number.isInteger(id)) return; subscriptionsRef.current.add(id); send({ type: 'subscribe', matchId: id }); }, [send]);

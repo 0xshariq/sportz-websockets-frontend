@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchMatchCommentary, fetchMatches, isAbortError } from '../services/api';
 import type { Commentary, Match, WSMessage } from '../utils/types';
+import { normalizeMatch } from '../utils/matches';
 import { useWebSocket } from './useWebSocket';
 
 interface UseMatchData { matches: Match[]; isLoading: boolean; error: string | null; commentary: Commentary[]; isCommentaryLoading: boolean; wsError: string | null; status: ReturnType<typeof useWebSocket>['status']; activeMatchId: number | null; newMatchesCount: number; dismissNewMatches: () => void; watchMatch: (id: string | number) => void; unwatchMatch: (id: string | number) => void; reloadMatches: () => void; }
@@ -12,7 +13,16 @@ export const useMatchData = (): UseMatchData => {
   const activeRef = useRef<number | null>(null); const matchesRef = useRef<Match[]>([]); const knownIdsRef = useRef(new Set<number>()); const liveScoresRef = useRef(new Map<number, Pick<Match, 'homeScore' | 'awayScore'>>());
   const subscribedRef = useRef(new Set<number>()); const requestRef = useRef(0); const pollRef = useRef(0); const pollAbortRef = useRef<AbortController | null>(null); const commentaryAbortRef = useRef<AbortController | null>(null);
   const handleMessage = useCallback((message: WSMessage) => {
-    if (message.type === 'match_created') setMatches(current => { if (knownIdsRef.current.has(message.data.id) || current.some(match => match.id === message.data.id)) return current; knownIdsRef.current.add(message.data.id); setNewMatchesCount(count => count + 1); return [message.data, ...current]; });
+    if (message.type === 'match_created') {
+      const match = normalizeMatch(message.data);
+      const isDuplicate = knownIdsRef.current.has(match.id) || matchesRef.current.some(item => item.id === match.id);
+      if (!isDuplicate) {
+        knownIdsRef.current.add(match.id);
+        matchesRef.current = [match, ...matchesRef.current];
+        setNewMatchesCount(count => count + 1);
+        setMatches(current => [match, ...current]);
+      }
+    }
     else if (message.type === 'score_update') { liveScoresRef.current.set(message.matchId, message.data); setMatches(current => current.map(match => match.id === message.matchId ? { ...match, ...message.data } : match)); }
     else if (message.type === 'commentary' && message.data.matchId === activeRef.current) setCommentary(current => current.some(item => item.id === message.data.id) ? current : [message.data, ...current]);
     else if (message.type === 'error') setWsError(`${message.code}: ${message.message}`);
