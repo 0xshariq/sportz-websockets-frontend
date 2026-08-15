@@ -27,7 +27,7 @@ export const formatMatchDate = (value?: string) => {
 };
 export const formatMatchTime = (value?: string) => {
   const date = parseValidDate(value);
-  return date ? new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(date) : 'Not provided';
+  return date ? new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: true }).format(date) : 'Not provided';
 };
 
 export const matchStatusLabel = (status: Match['status']) => status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();

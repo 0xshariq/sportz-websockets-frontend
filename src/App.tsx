@@ -8,10 +8,19 @@ import { API_BASE_URL, WS_BASE_URL } from './utils/constants';
 const App: React.FC = () => {
   const pageSize = 6;
   const [currentPage, setCurrentPage] = useState(1);
+  const [statusSort, setStatusSort] = useState<'live-first' | 'scheduled-first' | 'finished-first'>('live-first');
   const { matches, isLoading, error, commentary, isCommentaryLoading, wsError, status, activeMatchId, newMatchesCount, dismissNewMatches, watchMatch, unwatchMatch, reloadMatches } = useMatchData();
-  const totalPages = Math.max(1, Math.ceil(matches.length / pageSize));
+  const sortedMatches = useMemo(() => {
+    const priority = statusSort === 'live-first'
+      ? { live: 0, scheduled: 1, finished: 2 }
+      : statusSort === 'scheduled-first'
+        ? { scheduled: 0, live: 1, finished: 2 }
+        : { finished: 0, live: 1, scheduled: 2 };
+    return [...matches].sort((a, b) => (priority[a.status as keyof typeof priority] ?? 3) - (priority[b.status as keyof typeof priority] ?? 3));
+  }, [matches, statusSort]);
+  const totalPages = Math.max(1, Math.ceil(sortedMatches.length / pageSize));
   const effectivePage = Math.min(currentPage, totalPages);
-  const pagedMatches = useMemo(() => matches.slice((effectivePage - 1) * pageSize, effectivePage * pageSize), [matches, effectivePage]);
+  const pagedMatches = useMemo(() => sortedMatches.slice((effectivePage - 1) * pageSize, effectivePage * pageSize), [sortedMatches, effectivePage]);
 
   return <div className="app-shell font-sans">
     <header className="flex items-center justify-between gap-5 rounded-[18px] border-[3px] border-[#171717] bg-[#ffdc3e] px-5 py-6 shadow-[5px_5px_0_#171717] sm:px-[26px]">
@@ -22,7 +31,7 @@ const App: React.FC = () => {
     {wsError && <div role="status" aria-live="polite" className="mt-5 rounded-[14px] border-2 border-[#d39b00] bg-[#fff8d8] p-4 text-sm font-bold text-[#684d00]"><strong>Live update notice</strong><p className="mt-1 mb-0 font-semibold">{wsError}. The dashboard will continue reconnecting automatically.</p></div>}
     <div className="dashboard mt-7 grid items-start gap-7 lg:grid-cols-[minmax(0,2fr)_minmax(310px,.95fr)]">
       <main>
-        <div className="mb-4 flex items-center justify-between"><h2 className="m-0 border-l-[5px] border-[#a9dff7] pl-3 text-xl font-bold">Current Matches</h2><span className="mono rounded bg-[#171717] px-2 py-1 text-xs font-bold text-white">API: {isLoading ? '…' : matches.length}</span></div>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center justify-between gap-3"><h2 className="m-0 border-l-[5px] border-[#a9dff7] pl-3 text-xl font-bold">Current Matches</h2><span className="mono rounded bg-[#171717] px-2 py-1 text-xs font-bold text-white">API: {isLoading ? '…' : matches.length}</span></div><label className="flex items-center gap-2 text-xs font-bold" htmlFor="status-sort"><span>Sort by status</span><select id="status-sort" value={statusSort} onChange={event => { setStatusSort(event.target.value as typeof statusSort); setCurrentPage(1); }} className="rounded-md border-2 border-[#171717] bg-white px-2 py-1.5 text-xs font-bold"><option value="live-first">Live first</option><option value="scheduled-first">Scheduled first</option><option value="finished-first">Finished first</option></select></label></div>
         {newMatchesCount > 0 && <div role="status" aria-live="polite" className="mb-4 flex items-center justify-between rounded-[14px] border-2 border-[#171717] bg-[#ffdc3e] p-4 text-[13px] font-extrabold"><span>{newMatchesCount} new match{newMatchesCount > 1 ? 'es' : ''} added</span><button className="rounded-md border-2 border-[#171717] bg-white px-2 py-1 text-[11px] font-extrabold" onClick={dismissNewMatches}>Dismiss</button></div>}
         {isLoading && <div className="rounded-[14px] border-2 border-[#171717] bg-white p-4 text-center font-bold">{error ? 'Waiting for the server to wake up…' : 'Loading matches…'}</div>}
         {error && <div role="alert" className="mb-4 rounded-[14px] border-2 border-[#df3d48] bg-[#fff0f0] p-4 text-center text-[#a51e2a]"><strong>Connection Error</strong><p>{error}</p><button className="rounded-md border-2 border-[#171717] bg-white px-2 py-1 text-[11px] font-extrabold" onClick={reloadMatches}>Retry Connection</button></div>}
