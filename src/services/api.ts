@@ -3,6 +3,9 @@ import type { CommentaryResponse, Match, MatchResponse } from '../utils/types';
 import { normalizeMatches } from '../utils/matches';
 
 const clampLimit = (value: number) => Number.isFinite(value) ? Math.min(100, Math.max(1, Math.trunc(value))) : 100;
+const FIRST_REQUEST_TIMEOUT_MS = 45_000;
+const FIRST_REQUEST_RETRIES = 2;
+let hasCompletedInitialRequest = false;
 
 const readJson = async <T>(response: Response, resource: string): Promise<T> => {
   const body = await response.text();
@@ -18,12 +21,33 @@ const readJson = async <T>(response: Response, resource: string): Promise<T> => 
 };
 
 const request = async (url: string, signal?: AbortSignal) => {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
-  const abort = () => controller.abort();
-  signal?.addEventListener('abort', abort, { once: true });
-  try { return await fetch(url, { signal: controller.signal }); }
-  finally { clearTimeout(timeout); signal?.removeEventListener('abort', abort); }
+  const isInitialRequest = !hasCompletedInitialRequest;
+  const timeoutMs = isInitialRequest ? FIRST_REQUEST_TIMEOUT_MS : 10_000;
+  const maxAttempts = isInitialRequest ? FIRST_REQUEST_RETRIES + 1 : 1;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const abort = () => controller.abort();
+    signal?.addEventListener('abort', abort, { once: true });
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      if (response.ok || !isInitialRequest || response.status < 500) {
+        hasCompletedInitialRequest = true;
+        return response;
+      }
+      lastError = new Error(`API error: ${response.status} ${response.statusText || 'Request failed'}`);
+    } catch (error) {
+      lastError = error;
+      if (signal?.aborted) throw error;
+    } finally {
+      clearTimeout(timeout);
+      signal?.removeEventListener('abort', abort);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('The backend is starting. Please retry shortly.');
 };
 
 const normalizeListResponse = <T>(payload: unknown, resource: string): { data: T[] } => {
