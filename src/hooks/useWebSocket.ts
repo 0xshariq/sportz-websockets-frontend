@@ -29,6 +29,7 @@ export const useWebSocket = (onMessage: (message: WSMessage) => void): UseWebSoc
     socket.onopen = () => { attemptsRef.current = 0; setStatus('connected'); subscriptionsRef.current.forEach(matchId => socket.send(JSON.stringify({ type: 'subscribe', matchId }))); };
     socket.onmessage = event => { try { const parsed: unknown = JSON.parse(event.data); if (isWSMessage(parsed)) onMessageRef.current(parsed); } catch { /* malformed frames do not change connection status */ } };
     socket.onerror = () => {
+      if (socketRef.current !== socket || intentionalCloseRef.current) return;
       // onclose owns reconnect scheduling; keep the UI in a recoverable state during transient failures.
       setStatus('reconnecting');
     };

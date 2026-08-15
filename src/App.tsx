@@ -8,7 +8,7 @@ import { API_BASE_URL, WS_BASE_URL } from './utils/constants';
 const App: React.FC = () => {
   const pageSize = 6;
   const [currentPage, setCurrentPage] = useState(1);
-  const { matches, isLoading, error, commentary, isCommentaryLoading, status, activeMatchId, newMatchesCount, dismissNewMatches, watchMatch, unwatchMatch, reloadMatches } = useMatchData();
+  const { matches, isLoading, error, commentary, isCommentaryLoading, wsError, status, activeMatchId, newMatchesCount, dismissNewMatches, watchMatch, unwatchMatch, reloadMatches } = useMatchData();
   const totalPages = Math.max(1, Math.ceil(matches.length / pageSize));
   const effectivePage = Math.min(currentPage, totalPages);
   const pagedMatches = useMemo(() => matches.slice((effectivePage - 1) * pageSize, effectivePage * pageSize), [matches, effectivePage]);
@@ -19,6 +19,7 @@ const App: React.FC = () => {
       <div className="flex flex-col items-end gap-1"><StatusIndicator status={status} /></div>
     </header>
     {error && <div role="status" aria-live="polite" className="mt-5 rounded-[14px] border-2 border-[#df3d48] bg-[#fff0f0] p-4 text-sm font-bold text-[#a51e2a]"><strong>Backend unavailable</strong><p className="mt-1 mb-0 font-semibold">The match list will retry automatically.</p></div>}
+    {wsError && <div role="status" aria-live="polite" className="mt-5 rounded-[14px] border-2 border-[#d39b00] bg-[#fff8d8] p-4 text-sm font-bold text-[#684d00]"><strong>Live update notice</strong><p className="mt-1 mb-0 font-semibold">{wsError}. The dashboard will continue reconnecting automatically.</p></div>}
     <div className="dashboard mt-7 grid items-start gap-7 lg:grid-cols-[minmax(0,2fr)_minmax(310px,.95fr)]">
       <main>
         <div className="mb-4 flex items-center justify-between"><h2 className="m-0 border-l-[5px] border-[#a9dff7] pl-3 text-xl font-bold">Current Matches</h2><span className="mono rounded bg-[#171717] px-2 py-1 text-xs font-bold text-white">API: {isLoading ? '…' : matches.length}</span></div>

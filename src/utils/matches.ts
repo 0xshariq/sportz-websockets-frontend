@@ -15,8 +15,20 @@ export const normalizeMatch = (match: Match): Match => {
   return { ...match, status, startTime: Number.isNaN(startTime) ? match.startTime : new Date(startTime).toISOString(), endTime: Number.isNaN(endTime) ? match.endTime : new Date(endTime).toISOString() };
 };
 
-export const formatMatchDate = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value));
-export const formatMatchTime = (value?: string) => value ? new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : 'Not provided';
+const parseValidDate = (value?: string) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+export const formatMatchDate = (value?: string) => {
+  const date = parseValidDate(value);
+  return date ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(date) : 'Not provided';
+};
+export const formatMatchTime = (value?: string) => {
+  const date = parseValidDate(value);
+  return date ? new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(date) : 'Not provided';
+};
 
 export const matchStatusLabel = (status: Match['status']) => status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
 export const normalizeMatches = (matches: Match[]) => matches.map(normalizeMatch);
